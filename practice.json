@@ -1,0 +1,205 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "resourceGroup().location": {
+            "type": "string",
+            "metadata": { 
+                "description": "description"
+            }
+        } ,
+        "publicIPAllocationMethod" : {
+            "type" : "string",
+            "defaultValue" : "Dynamic",
+            "allowedValues" : [
+                "Dynamic" ,
+                "Ststic"
+            ],
+            "metadata" : {
+                "description" : "description"
+            }
+                   }
+           },
+
+    "functions": [],
+    "variables": {
+        "storagename" : "stprvatsav",
+        "nsgname" : "nsg-pr" ,
+        "pipname" : "pip-pr" ,
+        "vnname" : "vn-pr" ,
+        "addressprefixes" : "10.0.0.0/16" ,
+        "subname" : "sub-pr", 
+        "nicname" : "nic-pr" ,
+        "ipname" : "ipconfig-pr" ,
+        "computername" : "vatsav" ,
+        "username" : "vatsav1997" ,
+        "password" : "N@rayana1435" ,
+        "sku" : "2016-DataCenter" ,
+        "vmname" : "vm-pr"
+         },
+    "resources": [
+        { 
+            "name": "[variables('storagename')]",
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2021-04-01",
+            "location": "[parameters('resourceGroup().location')]",
+            "tags": {
+                "displayName": "windowsVM1 Storage Account"
+            },
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "Storage"
+        },
+        {
+            "name": "[variables('pipname')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2020-11-01",
+            "location": "[parameters('resourceGroup().location')]",
+            "tags": {
+                "displayName": "PublicIPAddress"
+            },
+            "properties": {
+                "publicIPAllocationMethod":"[parameters('publicIPAllocationMethod')]",
+                "dnsSettings": {
+                    "domainNameLabel": "vatsav1997"
+                }
+            }
+        },
+        {
+            "name": "[variables('nsgname')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2020-11-01",
+            "location": "[parameters('resourceGroup().location')]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "[variables('nsgname')]",
+                        "properties": {
+                            "description": "description",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "3389",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('vnname')]",
+            "type": "Microsoft.Network/virtualNetworks",
+            "location" : "[parameters('resourceGroup().location')]" ,
+            "apiVersion": "2020-11-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgname') )]"
+            ],
+            "tags": {
+                "displayName": "windowsVM1-VirtualNetwork"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes":[
+                         "[variables('addressprefixes')]"
+                    ]       
+                    
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subname')]",
+                        "properties": {
+                            "addressPrefix": "10.0.0.0/24",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgname') )]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        
+        {
+            "name": "[variables('nicname')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2020-11-01",
+            "location": "[parameters('resourceGroup().location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses',  variables('pipname'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnname') )]"
+            ],
+            "tags": {
+                "displayName": "windowsVM1 Network Interface"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "[variables('ipname')]",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('pipname') )]"
+                            },
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnname') ,  variables('subname'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('vmname')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2021-03-01",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storagename'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces',  variables('nicname'))]"
+            ],
+            "tags": {
+                "displayName": "windowsVM1"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "Standard_A2_v2"
+                },
+                "osProfile": {
+                    "computerName": "[variables('computername')]",
+                    "adminUsername": "[variables('username')]",
+                    "adminPassword": "[variables('password')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "MicrosoftWindowsServer",
+                        "offer": "WindowsServer",
+                        "sku": "[variables('sku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "windowsVM1OSDisk",
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicname'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true,
+                        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts/', variables('storagename') )).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        }
+    ],
+    "outputs": {}
+}
